@@ -30,6 +30,7 @@ namespace cartservice
             string spannerProjectId = Configuration["SPANNER_PROJECT"];
             string spannerConnectionString = Configuration["SPANNER_CONNECTION_STRING"];
             string alloyDBConnectionString = Configuration["ALLOYDB_PRIMARY_IP"];
+            string postgresHostName = Configuration["POSTGRES_HOSTNAME"];
 
             if (!string.IsNullOrEmpty(redisAddress))
             {
@@ -47,6 +48,11 @@ namespace cartservice
             {
                 Console.WriteLine("Creating AlloyDB cart store");
                 services.AddSingleton<ICartStore, AlloyDBCartStore>();
+            }
+            else if (!string.IsNullOrEmpty(postgresHostName))
+            {
+                Console.WriteLine("Creating Postgres cart store");
+                services.AddSingleton<ICartStore, PostgresCartStore>();
             }
             else
             {
