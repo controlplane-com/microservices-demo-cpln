@@ -51,8 +51,15 @@ If you’re using this demo, please **★Star** this repository to show your int
    ```
 
    Substitute `<PROJECT_ID>` with the ID of your Google Cloud project.
+  
+4. Confirm the services have been enabled for your project.
 
-4. Create a GKE cluster and get the credentials for it.
+   ```sh
+   gcloud services list --enabled --project=${PROJECT_ID}
+   ```
+
+
+5. Create a GKE cluster and get the credentials for it.
 
    ```sh
    gcloud container clusters create-auto online-boutique \
@@ -61,13 +68,13 @@ If you’re using this demo, please **★Star** this repository to show your int
 
    Creating the cluster may take a few minutes.
 
-5. Deploy Online Boutique to the cluster.
+6. Deploy Online Boutique to the cluster.
 
    ```sh
    kubectl apply -f ./release/kubernetes-manifests.yaml
    ```
 
-6. Wait for the pods to be ready.
+7. Wait for the pods to be ready.
 
    ```sh
    kubectl get pods
@@ -91,7 +98,7 @@ If you’re using this demo, please **★Star** this repository to show your int
    shippingservice-6ccc89f8fd-v686r         1/1     Running   0          2m58s
    ```
 
-7. Access the web frontend in a browser using the frontend's external IP.
+8. Access the web frontend in a browser using the frontend's external IP.
 
    ```sh
    kubectl get service frontend-external | awk '{print $4}'
@@ -99,7 +106,9 @@ If you’re using this demo, please **★Star** this repository to show your int
 
    Visit `http://EXTERNAL_IP` in a web browser to access your instance of Online Boutique.
 
-8. Once you are done with it, delete the GKE cluster.
+9. Congrats! You've deployed the default Online Boutique. To deploy a different variation of Online Boutique (e.g., with Google Cloud Operations tracing, Istio, etc.), see [Deploy Online Boutique variations with Kustomize](#deploy-online-boutique-variations-with-kustomize).
+
+10. Once you are done with it, delete the GKE cluster.
 
    ```sh
    gcloud container clusters delete online-boutique \
@@ -173,6 +182,7 @@ See the [Development guide](/docs/development-guide.md) to learn how to run and 
 
 ## Demos featuring Online Boutique
 
+- [The new Kubernetes Gateway API with Istio and Anthos Service Mesh (ASM)](https://medium.com/p/9d64c7009cd)
 - [Use Azure Redis Cache with the Online Boutique sample on AKS](https://medium.com/p/981bd98b53f8)
 - [Sail Sharp, 8 tips to optimize and secure your .NET containers for Kubernetes](https://medium.com/p/c68ba253844a)
 - [Deploy multi-region application with Anthos and Google cloud Spanner](https://medium.com/google-cloud/a2ea3493ed0)
