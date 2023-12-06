@@ -31,7 +31,7 @@ namespace cartservice
             string spannerConnectionString = Configuration["SPANNER_CONNECTION_STRING"];
             string alloyDBConnectionString = Configuration["ALLOYDB_PRIMARY_IP"];
             string postgresHostName = Configuration["POSTGRES_HOSTNAME"];
-            string pgEdgeHostList = Configuration["PGEDGE_HOSTS_LIST"];
+            string pgEdgeHostList = Configuration["PGEDGE_HOST_LIST"];
 
             if (!string.IsNullOrEmpty(redisAddress))
             {

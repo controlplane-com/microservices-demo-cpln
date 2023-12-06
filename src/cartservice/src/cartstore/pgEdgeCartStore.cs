@@ -11,16 +11,20 @@
 // limitations under the License.
 
 using System;
+using System.Linq;
+using System.Collections.Generic;
+using System.Net.NetworkInformation;
 using Grpc.Core;
 using Npgsql;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace cartservice.cartstore
 {
-    public class pgEdgeCartStore : ICartStore
+    public class pgEdgeCartStore  : ICartStore
     {
         private readonly string tableName;
         private readonly string connectionString;
@@ -28,65 +32,73 @@ namespace cartservice.cartstore
         public pgEdgeCartStore(IConfiguration configuration)
         {
             string databaseName = configuration["POSTGRES_DATABASE_NAME"];
-            string hostList = configuration["PGEDGE_HOSTS_LIST"];
+            string pgEdgeHostList = configuration["PGEDGE_HOST_LIST"];
             string username = configuration["POSTGRES_USERNAME"];
             string password = configuration["POSTGRES_PASSWORD"];
 
-            var hostWithPort = GetHostWithLowestLatency(hostList);
-            
-            connectionString = $"Host={hostWithPort};Username={username};Password={password};Database={databaseName}";
+            string selectedHost = SelectHostWithLowestLatency(pgEdgeHostList);
+            connectionString = $"Host={selectedHost};Username={username};Password={password};Database={databaseName}";
             tableName = configuration["POSTGRES_TABLE_NAME"];
         }
 
-        private string GetHostWithLowestLatency(string hostList)
+        private string SelectHostWithLowestLatency(string hostList)
         {
-            if (string.IsNullOrEmpty(hostList))
-            {
-                throw new InvalidOperationException("PGEDGE_HOSTS_LIST is not configured.");
-            }
+            var hosts = hostList.Split(',').Select(host => host.Trim()).ToList();
+            double lowestAverageLatency = double.MaxValue;
+            string selectedHost = string.Empty;
 
-            var hostsWithPorts = hostList.Split(',');
-            string selectedHostWithPort = null;
-            long lowestLatency = long.MaxValue;
-
-            foreach (var hostWithPort in hostsWithPorts)
+            foreach (var host in hosts)
             {
-                var latency = MeasureLatency(hostWithPort);
-                if (latency < lowestLatency)
+                var hostParts = host.Split(':');
+                var hostName = hostParts[0];
+                var port = int.Parse(hostParts.Length > 1 ? hostParts[1] : "5432"); // Default PostgreSQL port is 5432
+
+                var latencies = new List<double>();
+                for (int i = 0; i < 10; i++)
                 {
-                    lowestLatency = latency;
-                    selectedHostWithPort = hostWithPort;
+                    try
+                    {
+                        using (var sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                        {
+                            var stopwatch = new Stopwatch();
+
+                            // Measure the Connect call only
+                            stopwatch.Start();
+                            sock.Connect(hostName, port);
+                            stopwatch.Stop();
+
+                            double latency = stopwatch.Elapsed.TotalMilliseconds;
+                            latencies.Add(latency);
+
+                            sock.Close();
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore any exceptions and move to the next attempt
+                    }
+
+                    Thread.Sleep(1000); // Wait before the next attempt
+                }
+
+                // Calculate average latency for the current host
+                if (latencies.Count > 0)
+                {
+                    double averageLatency = latencies.Average();
+
+                    if (averageLatency < lowestAverageLatency)
+                    {
+                        lowestAverageLatency = averageLatency;
+                        selectedHost = host;
+                    }
                 }
             }
 
-            Console.WriteLine($"Selected pgEdge host: {selectedHostWithPort.Split(':')[0]} with latency: {lowestLatency} ms");
+            Console.WriteLine($"Selected pgEdge server: {selectedHost}, Latency: {lowestAverageLatency:0.00}ms");
 
-            return selectedHostWithPort ?? throw new InvalidOperationException("None of the pgEdge hosts are reachable.");
+            return selectedHost;
         }
 
-        private long MeasureLatency(string hostWithPort)
-        {
-            var host = hostWithPort.Split(':')[0];
-            var port = int.Parse(hostWithPort.Split(':')[1]);
-
-            var stopwatch = Stopwatch.StartNew();
-
-            try
-            {
-                using var tcpClient = new TcpClient();
-                tcpClient.Connect(host, port);
-            }
-            catch
-            {
-                return long.MaxValue;
-            }
-            finally
-            {
-                stopwatch.Stop();
-            }
-
-            return stopwatch.ElapsedMilliseconds;
-        }
 
         public async Task AddItemAsync(string userId, string productId, int quantity)
         {
