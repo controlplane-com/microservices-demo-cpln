@@ -36,12 +36,12 @@ namespace cartservice.cartstore
             string username = configuration["POSTGRES_USERNAME"];
             string password = configuration["POSTGRES_PASSWORD"];
 
-            string selectedHost = SelectHostWithLowestLatency(pgEdgeHostList);
+            string selectedHost = SelectHostWithLowestLatency(pgEdgeHostList, username, password, databaseName);
             connectionString = $"Host={selectedHost};Username={username};Password={password};Database={databaseName}";
             tableName = configuration["POSTGRES_TABLE_NAME"];
         }
 
-        private string SelectHostWithLowestLatency(string hostList)
+        private string SelectHostWithLowestLatency(string hostList, string username, string password, string databaseName)
         {
             var hosts = hostList.Split(',').Select(host => host.Trim()).ToList();
             double lowestAverageLatency = double.MaxValue;
@@ -54,24 +54,30 @@ namespace cartservice.cartstore
                 var port = int.Parse(hostParts.Length > 1 ? hostParts[1] : "5432"); // Default PostgreSQL port is 5432
 
                 var latencies = new List<double>();
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 5; i++)
                 {
                     try
                     {
-                        using (var sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                        var stopwatch = new Stopwatch();
+
+                        // Connection string for Npgsql
+                        var connectionString = $"Host={host};Username={username};Password={password};Database={databaseName}";
+
+                        using (var conn = new NpgsqlConnection(connectionString))
                         {
-                            var stopwatch = new Stopwatch();
-
-                            // Measure the Connect call only
                             stopwatch.Start();
-                            sock.Connect(hostName, port);
+                            
+                            conn.Open();
+                            using (var cmd = new NpgsqlCommand("SELECT VERSION();", conn))
+                            {
+                                cmd.ExecuteScalar(); // Execute the query
+                            }
+
                             stopwatch.Stop();
-
-                            double latency = stopwatch.Elapsed.TotalMilliseconds;
-                            latencies.Add(latency);
-
-                            sock.Close();
                         }
+
+                        double latency = stopwatch.Elapsed.TotalMilliseconds;
+                        latencies.Add(latency);
                     }
                     catch
                     {
@@ -86,6 +92,8 @@ namespace cartservice.cartstore
                 {
                     double averageLatency = latencies.Average();
 
+                    Console.WriteLine($"latency for pgEdge server: {host}, is: {averageLatency:0.00}ms");
+
                     if (averageLatency < lowestAverageLatency)
                     {
                         lowestAverageLatency = averageLatency;
@@ -98,7 +106,6 @@ namespace cartservice.cartstore
 
             return selectedHost;
         }
-
 
         public async Task AddItemAsync(string userId, string productId, int quantity)
         {
